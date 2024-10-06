@@ -1,5 +1,5 @@
-# Image Processor Application
-## also Simple Finder of Scanned-image Text Columns
+# Welcome to the `Image Processor Application`
+## also known as `Simple Finder of Scanned-image Text Columns`
 ### additionally known as `IPA-SFSiTC`
 
 This application accepts drag and dropped images (.bmp files only for now), then processes the images to find vertical columns of text.
