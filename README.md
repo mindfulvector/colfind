@@ -2,6 +2,9 @@
 ## also known as `Simple Finder of Scanned-image Text Columns`
 ### additionally known as `IPA-SFSiTC`
 
+![image](https://github.com/user-attachments/assets/d926db63-8145-463d-849c-9f317cc7f3f3)
+
+
 This application accepts drag and dropped images (.bmp files only for now), then processes the images to find vertical columns of text.
 
 It provides a simple interface to load images, apply the processing effects, visualize the results, and automatically save XML files.
