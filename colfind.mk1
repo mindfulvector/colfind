@@ -1,0 +1,24 @@
+!define BLANK ""
+C:\Users\topfr\Projects\CC\COLFIND\colfind.obj : C:\Users\topfr\Projects\CC\&
+COLFIND\src\colfind.cpp .AUTODEPEND
+ @C:
+ cd C:\Users\topfr\Projects\CC\COLFIND
+ *wpp386 src\colfind.cpp -i="C:\Bin\WATCOM/h;C:\Bin\WATCOM/h/nt" -w4 -e25 -z&
+q -od -d2 -6r -bt=nt -fo=.obj -mf -xs -xr
+
+C:\Users\topfr\Projects\CC\COLFIND\colfind.exe : C:\Users\topfr\Projects\CC\&
+COLFIND\colfind.obj .AUTODEPEND
+ @C:
+ cd C:\Users\topfr\Projects\CC\COLFIND
+ @%write colfind.lk1 FIL colfind.obj
+ @%append colfind.lk1 
+!ifneq BLANK ""
+ *wlib -q -n -b colfind.imp 
+ @%append colfind.lk1 LIBR colfind.imp
+!endif
+!ifneq BLANK ""
+ @%append colfind.lk1 
+!endif
+ *wlink name colfind d all sys nt_win op m op maxe=25 op q op symf @colfind.&
+lk1
+

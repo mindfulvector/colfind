@@ -1,0 +1,74 @@
+cd C:\Users\topfr\Projects\CC\COLFIND
+wmake -f C:\Users\topfr\Projects\CC\COLFIND\colfind.mk -h -e C:\Users\topfr\Projects\CC\COLFIND\colfind.exe
+wpp386 src\colfind.cpp -i="C:\Bin\WATCOM/h;C:\Bin\WATCOM/h/nt" -w4 -e25 -zq -od -d2 -6r -bt=nt -fo=.obj -mf -xs -xr
+src\colfind.cpp(21): Error! E842: col(20) namespace '::' qualifier cannot be used in this context
+src\colfind.cpp(21): Error! E336: col(20) declaration specifiers are required to declare 'unique_ptr'
+src\colfind.cpp(21): Error! E006: col(20) syntax error; probable cause: missing ';'
+src\colfind.cpp(22): Error! E121: col(20) syntax error
+src\colfind.cpp(25): Error! E121: col(2) syntax error
+C:\Bin\WATCOM\h\vector(68): Error! E437: col(95) cannot construct an undefined class
+C:\Bin\WATCOM\h\vector(68): Note! N633: col(95) template class instantiation for 'std::vector<ImageData,std::allocator<ImageData>>' was in: src\colfind.cpp(28) (col 24)
+C:\Bin\WATCOM\h\vector(68): Note! N638: col(95) 'ImageData' defined in: src\colfind.cpp(20) (col 8)
+C:\Bin\WATCOM\h\vector(86): Error! E437: col(51) cannot construct an undefined class
+C:\Bin\WATCOM\h\vector(86): Note! N633: col(51) template class instantiation for 'std::vector<ImageData,std::allocator<ImageData>>' was in: src\colfind.cpp(28) (col 24)
+C:\Bin\WATCOM\h\vector(86): Note! N638: col(51) 'ImageData' defined in: src\colfind.cpp(20) (col 8)
+src\colfind.cpp(35): Error! E121: col(23) syntax error
+src\colfind.cpp(50): Error! E121: col(20) syntax error
+src\colfind.cpp(53): Error! E166: col(22) cannot convert right pointer to type of left operand
+src\colfind.cpp(53): Note! N630: col(22) source conversion type is 'wchar_t const *'
+src\colfind.cpp(53): Note! N631: col(22) target conversion type is 'char const *'
+src\colfind.cpp(61): Error! E029: col(9) symbol 'nullptr' has not been declared
+src\colfind.cpp(69): Error! E121: col(16) syntax error
+src\colfind.cpp(77): Warning! W726: col(1) no reference to formal parameter 'hPrevInstance'
+src\colfind.cpp(46): Note! N392: col(51) definition: 'HINSTANCE__ * hPrevInstance' in 'int __stdcall WinMain( HINSTANCE__ *, HINSTANCE__ *, char *, int )'
+src\colfind.cpp(77): Warning! W726: col(1) no reference to formal parameter 'lpCmdLine'
+src\colfind.cpp(46): Note! N392: col(72) definition: 'char * lpCmdLine' in 'int __stdcall WinMain( HINSTANCE__ *, HINSTANCE__ *, char *, int )'
+src\colfind.cpp(87): Error! E473: col(23) function argument(s) do not match those in prototype
+src\colfind.cpp(87): Note! N392: col(23) definition: 'int __stdcall (__declspec(dllimport) AppendMenuA)( HMENU__ *, unsigned, unsigned, char const * )'
+src\colfind.cpp(87): Note! N643: col(23) cannot convert argument 4 defined in: src\colfind.cpp(87) (col 48)
+src\colfind.cpp(87): Note! N630: col(23) source conversion type is 'wchar_t [5] (lvalue)'
+src\colfind.cpp(87): Note! N631: col(23) target conversion type is 'char const *'
+src\colfind.cpp(88): Error! E473: col(23) function argument(s) do not match those in prototype
+src\colfind.cpp(88): Note! N392: col(23) definition: 'int __stdcall (__declspec(dllimport) AppendMenuA)( HMENU__ *, unsigned, unsigned, char const * )'
+src\colfind.cpp(88): Note! N643: col(23) cannot convert argument 4 defined in: src\colfind.cpp(88) (col 61)
+src\colfind.cpp(88): Note! N630: col(23) source conversion type is 'wchar_t [5] (lvalue)'
+src\colfind.cpp(88): Note! N631: col(23) target conversion type is 'char const *'
+src\colfind.cpp(110): Error! E121: col(33) syntax error
+src\colfind.cpp(113): Error! E166: col(29) cannot convert right pointer to type of left operand
+src\colfind.cpp(113): Note! N630: col(29) source conversion type is 'wchar_t *'
+src\colfind.cpp(113): Note! N631: col(29) target conversion type is 'char const *'
+src\colfind.cpp(114): Error! E166: col(27) cannot convert right pointer to type of left operand
+src\colfind.cpp(114): Note! N630: col(27) source conversion type is 'wchar_t *'
+src\colfind.cpp(114): Note! N631: col(27) target conversion type is 'char *'
+src\colfind.cpp(117): Error! E166: col(29) cannot convert right pointer to type of left operand
+src\colfind.cpp(117): Note! N630: col(29) source conversion type is 'wchar_t *'
+src\colfind.cpp(117): Note! N631: col(29) target conversion type is 'char const *'
+src\colfind.cpp(121): Error! E473: col(29) function argument(s) do not match those in prototype
+src\colfind.cpp(121): Note! N392: col(29) definition: 'void ProcessImage( std::basic_string<wchar_t,std::char_traits<wchar_t>,std::allocator<wchar_t>> const & )'
+src\colfind.cpp(121): Note! N643: col(29) cannot convert argument 1 defined in: src\colfind.cpp(121) (col 30)
+src\colfind.cpp(121): Note! N630: col(29) source conversion type is 'wchar_t [260] (lvalue)'
+src\colfind.cpp(121): Note! N631: col(29) target conversion type is 'std::basic_string<wchar_t,std::char_traits<wchar_t>,std::allocator<wchar_t>> const (lvalue)'
+src\colfind.cpp(121): Note! N747: col(29) class 'std::basic_string<wchar_t,std::char_traits<wchar_t>,std::allocator<wchar_t>>' has not been defined
+src\colfind.cpp(122): Error! E029: col(38) symbol 'nullptr' has not been declared
+src\colfind.cpp(130): Error! E029: col(63) symbol 'nullptr' has not been declared
+src\colfind.cpp(134): Error! E473: col(30) function argument(s) do not match those in prototype
+src\colfind.cpp(134): Note! N392: col(30) definition: 'unsigned __stdcall (__declspec(dllimport) DragQueryFileA)( HDROP__ *, unsigned, char *, unsigned )'
+src\colfind.cpp(134): Note! N643: col(30) cannot convert argument 3 defined in: src\colfind.cpp(134) (col 41)
+src\colfind.cpp(134): Note! N630: col(30) source conversion type is 'wchar_t [260] (lvalue)'
+src\colfind.cpp(134): Note! N631: col(30) target conversion type is 'char *'
+src\colfind.cpp(135): Error! E473: col(29) function argument(s) do not match those in prototype
+src\colfind.cpp(135): Note! N392: col(29) definition: 'void ProcessImage( std::basic_string<wchar_t,std::char_traits<wchar_t>,std::allocator<wchar_t>> const & )'
+src\colfind.cpp(135): Note! N643: col(29) cannot convert argument 1 defined in: src\colfind.cpp(135) (col 30)
+src\colfind.cpp(135): Note! N630: col(29) source conversion type is 'wchar_t [260] (lvalue)'
+src\colfind.cpp(135): Note! N631: col(29) target conversion type is 'std::basic_string<wchar_t,std::char_traits<wchar_t>,std::allocator<wchar_t>> const (lvalue)'
+src\colfind.cpp(135): Note! N747: col(29) class 'std::basic_string<wchar_t,std::char_traits<wchar_t>,std::allocator<wchar_t>>' has not been defined
+src\colfind.cpp(161): Error! E029: col(34) symbol 'nullptr' has not been declared
+src\colfind.cpp(171): Error! E473: col(41) function argument(s) do not match those in prototype
+src\colfind.cpp(171): Note! N392: col(41) definition: 'void * __stdcall (__declspec(dllimport) LoadImageA)( HINSTANCE__ *, char const *, unsigned, int, int, unsigned )'
+src\colfind.cpp(171): Note! N643: col(41) cannot convert argument 2 defined in: src\colfind.cpp(171) (col 62)
+src\colfind.cpp(171): Note! N630: col(41) source conversion type is 'wchar_t const *'
+src\colfind.cpp(171): Note! N631: col(41) target conversion type is 'char const *'
+src\colfind.cpp(181): Error! E133: col(22) too many errors: compilation aborted
+Error(E42): Last command making (C:\Users\topfr\Projects\CC\COLFIND\colfind.obj) returned a bad status
+Error(E02): Make execution terminated
+Execution complete
