@@ -37,12 +37,18 @@ bitmap data using pure C++98 code.
 
 ## Installation and Compilation
 
+Prerequisites:
+* [OpenWatcom 2.0](https://github.com/open-watcom/open-watcom-v2/releases)
+
 To compile and run this program:
 
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/your-repo-name.git
-   cd your-repo-name
+   ```
+   git clone git@github.com:mindfulvector/colfind.git
+   ```
+2. Open `colfind.wpj` using [OpenWatcom 2.0](https://github.com/open-watcom/open-watcom-v2/releases)
+3. Press `F4` or select `Targets` > `Make` from the menu bar
+4. To run, press `Ctrl+R` or select `Targets` > `Run` from the menu bar
 
 ## License
 This code is licensed under the BSD 3-clause license, according to the `LICENSE` file.
