@@ -366,6 +366,7 @@ void ProcessImage(const char* filename)
 
 
 
+
 void RenderThumbnails(HWND hwnd, HDC hdc)
 {
     RECT clientRect;
@@ -373,7 +374,6 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
 
     int x = thumbnailSpacing;
     int y = thumbnailSpacing;
-    int maxWidth = clientRect.right - thumbnailSpacing;
 
     for (size_t i = 0; i < images.size(); ++i)
     {
@@ -385,7 +385,7 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
         HBITMAP hBitmap = CreateDIBSection(hdc, thumbnailSize, thumbnailSize, &pBits);
         HBITMAP hOldBitmap = (HBITMAP)SelectObject(hdcMem, hBitmap);
 
-        // Scale and copy original image data
+        // Scale and copy image data
         for (int ty = 0; ty < thumbnailSize; ++ty) {
             for (int tx = 0; tx < thumbnailSize; ++tx) {
                 int sx = tx * img.width / thumbnailSize;
@@ -401,31 +401,72 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
 
         BitBlt(hdc, x, y, thumbnailSize, thumbnailSize, hdcMem, 0, 0, SRCCOPY);
 
-        // Draw detected columns as vertical lines
-        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(0, 255, 0));  // Green for detected columns
+        SelectObject(hdcMem, hOldBitmap);
+        DeleteObject(hBitmap);
+
+        // Render processed thumbnail
+        hBitmap = CreateDIBSection(hdc, thumbnailSize, thumbnailSize, &pBits);
+        hOldBitmap = (HBITMAP)SelectObject(hdcMem, hBitmap);
+
+        // Scale and copy processed image data
+        for (int ty = 0; ty < thumbnailSize; ++ty) {
+            for (int tx = 0; tx < thumbnailSize; ++tx) {
+                int sx = tx * img.width / thumbnailSize;
+                int sy = ty * img.height / thumbnailSize;
+                int sIndex = (sy * img.width + sx) * 4;
+                int tIndex = (ty * thumbnailSize + tx) * 4;
+                ((BYTE*)pBits)[tIndex] = img.processedData[sIndex];
+                ((BYTE*)pBits)[tIndex + 1] = img.processedData[sIndex + 1];
+                ((BYTE*)pBits)[tIndex + 2] = img.processedData[sIndex + 2];
+                ((BYTE*)pBits)[tIndex + 3] = img.processedData[sIndex + 3];
+            }
+        }
+
+        BitBlt(hdc, x + thumbnailSize + thumbnailSpacing, y, thumbnailSize, thumbnailSize, hdcMem, 0, 0, SRCCOPY);
+
+        // Draw detected columns as thin vertical lines over the processed thumbnail
+        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));  // Red color for edges
         HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
 
-        for (int col = 0; col < img.detectedColumns.size(); ++col) {
-            int tx = col * thumbnailSize / img.width;
-            MoveToEx(hdc, x + tx, y, NULL);
-            LineTo(hdc, x + tx, y + thumbnailSize);
+        for (int tx = 1; tx < thumbnailSize - 1; ++tx) {
+            int prevX = (tx - 1) * img.width / thumbnailSize;
+            int currX = tx * img.width / thumbnailSize;
+            int isEdge = 0;
+
+            // Check for edge in the thumbnail
+            for (int ty = 0; ty < thumbnailSize; ++ty) {
+                int sy = ty * img.height / thumbnailSize;
+                int sIndexCurr = (sy * img.width + currX) * 4;
+                int sIndexPrev = (sy * img.width + prevX) * 4;
+
+                // Simple edge detection by checking grayscale difference
+                BYTE grayCurr = (img.processedData[sIndexCurr] + img.processedData[sIndexCurr + 1] + img.processedData[sIndexCurr + 2]) / 3;
+                BYTE grayPrev = (img.processedData[sIndexPrev] + img.processedData[sIndexPrev + 1] + img.processedData[sIndexPrev + 2]) / 3;
+
+                if (abs(grayCurr - grayPrev) > 20) { // Threshold for detecting edges
+                    isEdge++;
+                    //break;
+                }
+            }
+
+            if (isEdge > 2) {
+                // Draw a thin vertical line in bright color (red)
+                MoveToEx(hdc, x + thumbnailSize + thumbnailSpacing + tx, y, NULL); // Starting point
+                LineTo(hdc, x + thumbnailSize + thumbnailSpacing + tx, y + thumbnailSize); // Vertical line
+            }
         }
 
         SelectObject(hdc, hOldPen);
         DeleteObject(hPen);
 
-        // Draw filename below the thumbnail
-        TextOut(hdc, x, y + thumbnailSize + 5, img.filename.c_str(), img.filename.size());
-
         SelectObject(hdcMem, hOldBitmap);
         DeleteObject(hBitmap);
+        DeleteDC(hdcMem);
 
-        // Move to next thumbnail position
-        x += (thumbnailSize + thumbnailSpacing) * 2;
-
-        if (x + (thumbnailSize + thumbnailSpacing) * 2 > maxWidth) {
-            x = thumbnailSpacing;
-            y += thumbnailSize + thumbnailSpacing + 20;
+        y += thumbnailSize + thumbnailSpacing;
+        if (y + thumbnailSize > clientRect.bottom) {
+            y = thumbnailSpacing;
+            x += (thumbnailSize + thumbnailSpacing) * 2;
         }
     }
 
