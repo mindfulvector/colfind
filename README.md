@@ -39,6 +39,7 @@ bitmap data using pure C++98 code.
 
 Prerequisites:
 * [OpenWatcom 2.0](https://github.com/open-watcom/open-watcom-v2/releases)
+* Windows (any version supported by OpenWatcom 2.0 should work)
 
 To compile and run this program:
 
