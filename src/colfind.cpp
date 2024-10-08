@@ -415,12 +415,17 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
     {
         ImageData& img = images[i];
 
-        // Create a bitmap in memory which we will use to render the image data
-        if(img.hOriginalBitmap == NULL) {
-            img.hdcMem = CreateCompatibleDC(hdc);
-            img.hOriginalBitmap = BitsToThumbnailBitmap(img.hdcMem, img.width, img.height, img.originalData);
-        }
+        // Create memory DC for bitmap sections of this image's thumbnails
+        if(img.hdcMem == NULL) img.hdcMem = CreateCompatibleDC(hdc);
 
+        // Create bitmap sections for original and processed image data
+        if(img.hOriginalBitmap == NULL)
+            img.hOriginalBitmap = BitsToThumbnailBitmap(img.hdcMem, img.width, img.height, img.originalData);
+
+        if(img.hProcessedBitmap == NULL)
+            img.hProcessedBitmap = BitsToThumbnailBitmap(img.hdcMem, img.width, img.height, img.processedData);
+
+        //===================================================================//
         // Render original thumbnail
         StretchBlt(
             hdc,                    // hdcDest
@@ -436,8 +441,9 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
             SRCCOPY
         );
 
-
-        /*BitBlt(
+        /*
+        // Renders unscaled thumbnail?
+        BitBlt(
             hdc,                    // hdcDest
             xPos,                   // xDest
             yPos,                   // yDest
@@ -446,83 +452,64 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
             img.hdcMem,             // hdcSrc
             0,0, SRCCOPY);
         */
-        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));  // Red color for edges
+
+        // FPO / debug cross line
+        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));  // Red color for original
         HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
-
-        MoveToEx(hdc, xPos, yPos, NULL); // Starting point
-        LineTo(hdc, xPos + thumbnailSize, yPos + thumbnailSize); // Vertical line
-
+        MoveToEx(hdc, xPos, yPos, NULL);
+        LineTo(hdc, xPos + thumbnailSize, yPos + thumbnailSize);
         SelectObject(hdc, hOldPen);
         DeleteObject(hPen);
 
-/*        SelectObject(img.hdcMem, hOldBitmap);
-        DeleteObject(hBitmap);
-        DeleteDC(hdcMem);
-  */
-        /*
-        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));  // Red color for edges
-        HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
 
-        for (int col = 0; col < img.detectedColumns.size(); ++col) {
-            int tx = img.detectedColumns[col];
-            MoveToEx(hdc, thumbnailSize / 500 * (x + thumbnailSpacing + tx), y, NULL); // Starting point
-            LineTo(hdc, thumbnailSize / 500 * (x + thumbnailSpacing + tx), y + thumbnailSize); // Vertical line
-        }
-        */
-
-        /*
-        hBitmap = CreateDIBSection(hdc, thumbnailSize, thumbnailSize, &pBits);
-        hOldBitmap = (HBITMAP)SelectObject(hdcMem, hBitmap);
-
-        for (int tx = 1; tx < thumbnailSize - 1; ++tx) {
-            int prevX = (tx - 1) * img.width / thumbnailSize;
-            int currX = tx * img.width / thumbnailSize;
-            int isEdge = 0;
-
-            // Check for edge in the thumbnail
-            for (int ty = 0; ty < thumbnailSize; ++ty) {
-                int sy = ty * img.height / thumbnailSize;
-                int sIndexCurr = (sy * img.width + currX) * 4;
-                int sIndexPrev = (sy * img.width + prevX) * 4;
-
-                // Simple edge detection by checking grayscale difference
-                BYTE grayCurr = (img.processedData[sIndexCurr] + img.processedData[sIndexCurr + 1] + img.processedData[sIndexCurr + 2]) / 3;
-                BYTE grayPrev = (img.processedData[sIndexPrev] + img.processedData[sIndexPrev + 1] + img.processedData[sIndexPrev + 2]) / 3;
-
-                if (abs(grayCurr - grayPrev) > 20) { // Threshold for detecting edges
-                    isEdge++;
-                    //break;
-                }
-            }
-
-            if (isEdge == 1) {
-                // Draw a thin vertical line in bright color (red)
-                MoveToEx(hdc, x + thumbnailSize + thumbnailSpacing + tx, y, NULL); // Starting point
-                LineTo(hdc, x + thumbnailSize + thumbnailSpacing + tx, y + thumbnailSize); // Vertical line
-            }
-        }
-        *
-
-        SelectObject(hdc, hOldPen);
-        DeleteObject(hPen);
-
-        SelectObject(hdcMem, hOldBitmap);
-        DeleteObject(hBitmap);
-        DeleteDC(hdcMem);
-        */
+        // Position next thumbnail
+        MoveToEx(hdc, xPos, yPos, NULL);
 
         xPos += thumbnailSize + thumbnailSpacing;
         if (xPos + thumbnailSize > clientRect.right) {
             xPos = thumbnailSpacing;
-            yPos += (thumbnailSize + thumbnailSpacing) * 2;
+            yPos += (thumbnailSize + thumbnailSpacing);
         }
+
+        //===================================================================//
+        // Render processed thumbnail
+        StretchBlt(
+            hdc,                    // hdcDest
+            xPos,                   // xDest
+            yPos,                   // yDest
+            thumbnailSize,          // wDest
+            thumbnailSize,          // hDest
+            img.hdcMem,                 // hdcSrc
+            0,                      // xSrc
+            0,                      // ySrc
+            THUMBNAIL_BASE_SIZE,    // wSrc
+            THUMBNAIL_BASE_SIZE,    // hSrc
+            SRCCOPY
+        );
+
+
+        // FPO / debug cross line
+        hPen = CreatePen(PS_SOLID, 1, RGB(0, 255, 0));  // Green color for processed
+        hOldPen = (HPEN)SelectObject(hdc, hPen);
+        MoveToEx(hdc, xPos, yPos, NULL);
+        LineTo(hdc, xPos + thumbnailSize, yPos + thumbnailSize);
+        SelectObject(hdc, hOldPen);
+        DeleteObject(hPen);
+
+        // Position next thumbnail
+        xPos += thumbnailSize + thumbnailSpacing;
+        if (xPos + thumbnailSize > clientRect.right) {
+            xPos = thumbnailSpacing;
+            yPos += (thumbnailSize + thumbnailSpacing);
+        }
+
     }
 
     // Update scrollbar
-    si.cbSize = sizeof(SCROLLINFO);
     si.fMask = SIF_RANGE | SIF_PAGE;
     si.nMin = 0;
-    si.nMax = yPos;
+    si.nMax = yPos + thumbnailSize;
     si.nPage = clientRect.bottom;
     SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
+
 }
