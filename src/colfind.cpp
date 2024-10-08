@@ -1,15 +1,22 @@
-
+// Disable min and max macros to avoid compiler error
 #define NOMINMAX
 
+// Windows headers
 #include <windows.h>
 #include <commdlg.h>
-#include <vector>
-#include <string>
+
+// Standard C++ library headers
+#include <vector>   // For memory storage such as the list of loaded images in a particular window
+#include <string>   // Well, for strings
 #include <fstream>  // For file I/O
 
+// Constants
 #define THUMBNAIL_BASE_SIZE 500
+
+// Win32 object IDs
 #define ID_FILE_OPEN 1000
 
+// Restore missing min and max features
 template <typename T>
 inline T min(T a, T b) {
     return (a < b) ? a : b;
@@ -19,6 +26,23 @@ template <typename T>
 inline T max(T a, T b) {
     return (a > b) ? a : b;
 }
+
+// Struct to hold state information for a specific application window
+struct WindowState {
+    bool bInitialized;
+    HWND hwnd;          // Window this state belongs to
+    RECT clientRect;
+    void* pBackbufferBits;
+    HDC hdcBackbuffer;
+    HBITMAP hBackbufferBitmap;
+
+    WindowState() :
+        bInitialized(false),
+        hwnd(NULL),
+        clientRect(),
+        pBackbufferBits(NULL),
+        hdcBackbuffer(NULL) {}
+};
 
 // Struct to hold image data
 struct ImageData {
@@ -117,6 +141,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */, LPSTR /* 
         NULL, NULL, hInstance, NULL
     );
 
+    // Stack allocation is okay for this state object since WinMain stays
+    // in the message pump until we're ready to quit. This stores state
+    // information for the specific window it's attached to.
+    WindowState state;
+
+    // Store pointer to state object for this window as the user data
+    // index. This will allow us to have multiple windows, which we couldn't
+    // if we used static or global variables for this state information.
+    SetWindowLong(hwnd, GWL_USERDATA, (long)(void*)&state);
+
     if (hwnd == NULL) return 0;
 
     ShowWindow(hwnd, nCmdShow);
@@ -159,11 +193,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
-        RECT rect;
+        //RECT rect;
 
-        GetWindowRect(hwnd, &rect);
-        SelectObject(hdc, GetStockObject(WHITE_BRUSH));
-        Rectangle(hdc, 0, 0, rect.right, rect.bottom);
+        //GetWindowRect(hwnd, &rect);
+        //SelectObject(hdc, GetStockObject(WHITE_BRUSH));
+        //Rectangle(hdc, 0, 0, rect.right, rect.bottom);
 
         RenderThumbnails(hwnd, hdc);
 
@@ -216,12 +250,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             if (delta > 0)
             {
                 // Scrolled up, zoom in
-                thumbnailScale = min(thumbnailScale + 0.01f, 100.0f); // Limit max thumbnail size to 500
+                thumbnailScale = min(thumbnailScale + 0.1f, 100.0f); // Limit max thumbnail size to 500
             }
             else if (delta < 0)
             {
                 // Scrolled down, zoom out
-                thumbnailScale = max(thumbnailScale - 0.01f, 0.5f);  // Limit min thumbnail size to 50
+                thumbnailScale = max(thumbnailScale - 0.1f, 0.5f);  // Limit min thumbnail size to 50
             }
 
             // Invalidate the window to trigger a repaint with the new thumbnail size
@@ -399,9 +433,32 @@ HBITMAP BitsToThumbnailBitmap(HDC hdc, int sourceWidth, int sourceHeight, BYTE* 
 
 void RenderThumbnails(HWND hwnd, HDC hdc)
 {
-    RECT clientRect;
-    GetClientRect(hwnd, &clientRect);
+    WindowState* win;
+    win = (WindowState*)GetWindowLong(hwnd, GWL_USERDATA);
+    if(win == NULL) {
+        MessageBox(hwnd, "Internal state error, no user data pointer found on HWND. The application must exit.", "Error", MB_OK | MB_ICONEXCLAMATION);
+        exit(9);
+    }
 
+    GetClientRect(hwnd, &(win->clientRect));
+
+    if(!win->bInitialized) {
+        win->hdcBackbuffer = CreateCompatibleDC(hdc);
+        win->hBackbufferBitmap = CreateDIBSection(
+            win->hdcBackbuffer,
+            win->clientRect.right,
+            win->clientRect.bottom,
+            &win->pBackbufferBits
+        );
+        SelectObject(win->hdcBackbuffer, win->hBackbufferBitmap);
+    }
+
+    // Clear backbuffer
+    SelectObject(win->hdcBackbuffer, GetStockObject(WHITE_BRUSH));
+    Rectangle(win->hdcBackbuffer, -1, -1, win->clientRect.right+1, win->clientRect.bottom+1);
+
+
+    // Get scroll pos
     SCROLLINFO si;
     si.cbSize = sizeof(SCROLLINFO);
     si.fMask = SIF_ALL;
@@ -428,7 +485,7 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
         //===================================================================//
         // Render original thumbnail
         StretchBlt(
-            hdc,                    // hdcDest
+            win->hdcBackbuffer,          // hdcDest
             xPos,                   // xDest
             yPos,                   // yDest
             thumbnailSize,          // wDest
@@ -444,7 +501,7 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
         /*
         // Renders unscaled thumbnail?
         BitBlt(
-            hdc,                    // hdcDest
+            hdcBackbuffer,          // hdcDest
             xPos,                   // xDest
             yPos,                   // yDest
             thumbnailSize,          // wDest
@@ -455,18 +512,18 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
 
         // FPO / debug cross line
         HPEN hPen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));  // Red color for original
-        HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
-        MoveToEx(hdc, xPos, yPos, NULL);
-        LineTo(hdc, xPos + thumbnailSize, yPos + thumbnailSize);
-        SelectObject(hdc, hOldPen);
+        HPEN hOldPen = (HPEN)SelectObject(win->hdcBackbuffer, hPen);
+        MoveToEx(win->hdcBackbuffer, xPos, yPos, NULL);
+        LineTo(win->hdcBackbuffer, xPos + thumbnailSize, yPos + thumbnailSize);
+        SelectObject(win->hdcBackbuffer, hOldPen);
         DeleteObject(hPen);
 
 
         // Position next thumbnail
-        MoveToEx(hdc, xPos, yPos, NULL);
+        MoveToEx(win->hdcBackbuffer, xPos, yPos, NULL);
 
         xPos += thumbnailSize + thumbnailSpacing;
-        if (xPos + thumbnailSize > clientRect.right) {
+        if (xPos + thumbnailSize > win->clientRect.right) {
             xPos = thumbnailSpacing;
             yPos += (thumbnailSize + thumbnailSpacing);
         }
@@ -474,12 +531,12 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
         //===================================================================//
         // Render processed thumbnail
         StretchBlt(
-            hdc,                    // hdcDest
+            win->hdcBackbuffer,          // hdcDest
             xPos,                   // xDest
             yPos,                   // yDest
             thumbnailSize,          // wDest
             thumbnailSize,          // hDest
-            img.hdcMem,                 // hdcSrc
+            img.hdcMem,             // hdcSrc
             0,                      // xSrc
             0,                      // ySrc
             THUMBNAIL_BASE_SIZE,    // wSrc
@@ -490,26 +547,39 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
 
         // FPO / debug cross line
         hPen = CreatePen(PS_SOLID, 1, RGB(0, 255, 0));  // Green color for processed
-        hOldPen = (HPEN)SelectObject(hdc, hPen);
-        MoveToEx(hdc, xPos, yPos, NULL);
-        LineTo(hdc, xPos + thumbnailSize, yPos + thumbnailSize);
-        SelectObject(hdc, hOldPen);
+        hOldPen = (HPEN)SelectObject(win->hdcBackbuffer, hPen);
+        MoveToEx(win->hdcBackbuffer, xPos, yPos, NULL);
+        LineTo(win->hdcBackbuffer, xPos + thumbnailSize, yPos + thumbnailSize);
+        SelectObject(win->hdcBackbuffer, hOldPen);
         DeleteObject(hPen);
 
         // Position next thumbnail
         xPos += thumbnailSize + thumbnailSpacing;
-        if (xPos + thumbnailSize > clientRect.right) {
+        if (xPos + thumbnailSize > win->clientRect.right) {
             xPos = thumbnailSpacing;
             yPos += (thumbnailSize + thumbnailSpacing);
         }
 
     }
 
+    // Render backbuffer to window
+    BitBlt(
+        hdc,                        // hdcDest
+        0,                          // xDest
+        0,                          // yDest
+        win->clientRect.right,           // wDest
+        win->clientRect.bottom,          // hDest
+        win->hdcBackbuffer,              // hdcSrc
+        0,                          // xSrc
+        0,                          // ySrc
+        SRCCOPY
+    );
+
     // Update scrollbar
     si.fMask = SIF_RANGE | SIF_PAGE;
     si.nMin = 0;
-    si.nMax = yPos + thumbnailSize;
-    si.nPage = clientRect.bottom;
+    si.nMax = yPos + thumbnailSize * 1.25;
+    si.nPage = win->clientRect.bottom;
     SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
 
 }
