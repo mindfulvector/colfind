@@ -49,8 +49,9 @@ struct ImageData {
     std::string filename;
     BYTE* originalData;
     BYTE* processedData;
-    HDC hdcMem;
+    HDC hdcMemOriginal;
     HBITMAP hOriginalBitmap;
+    HDC hdcMemProcessed;
     HBITMAP hProcessedBitmap;
     int width;
     int height;
@@ -137,7 +138,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */, LPSTR /* 
     HWND hwnd = CreateWindow(
         CLASS_NAME, "Image Processor",
         WS_OVERLAPPEDWINDOW | WS_VSCROLL,
-        CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+        CW_USEDEFAULT, CW_USEDEFAULT, 1600, 1000,
         NULL, NULL, hInstance, NULL
     );
 
@@ -331,6 +332,10 @@ void SaveColumnDataToXML(const std::vector<int>& columnPositions, const char* fi
     xmlFile.close();
 }
 
+int bgrToGrayscale(int green, int blue, int red) {
+    // Convert to grayscale using luminosity method
+    return static_cast<int>(0.299 * red + 0.587 * green + 0.114 * blue);
+}
 
 void ProcessImage(const char* filename)
 {
@@ -356,25 +361,40 @@ void ProcessImage(const char* filename)
         for (int x = 0; x < imgData.width; ++x) {
             COLORREF color = GetPixel(hdcMem, x, y);
             int index = (y * imgData.width + x) * 4;
-            imgData.originalData[index] = GetRValue(color);
-            imgData.originalData[index + 1] = GetGValue(color);
-            imgData.originalData[index + 2] = GetBValue(color);
-            imgData.originalData[index + 3] = 255; // Alpha
+            imgData.originalData[index] = GetBValue(color);         // Blue
+            imgData.originalData[index + 1] = GetGValue(color);     // Green
+            imgData.originalData[index + 2] = GetRValue(color);     // Red
+            imgData.originalData[index + 3] = 255;                  // Alpha
+
+            // Convert to greyscale and set in the processedData array
+            int grey = bgrToGrayscale(
+                imgData.originalData[index],
+                imgData.originalData[index+1],
+                imgData.originalData[index+2]);
+            imgData.processedData[index] = grey;                    // Blue
+            imgData.processedData[index + 1] = grey;                // Green
+            imgData.processedData[index + 2] = grey;                // Red
+            imgData.processedData[index + 3] = 255;                 // Alpha
         }
     }
 
     // Step 1: Vertical Smearing (Simple Copying Down the Column)
+    #define MAX_VERT 10
     for (int x = 0; x < imgData.width; ++x) {
         for (int y = 1; y < imgData.height; ++y) {
-            int prevIndex = ((y - 1) * imgData.width + x) * 4;
             int currIndex = (y * imgData.width + x) * 4;
 
-            // @TODO: Combine pixels instead of clobbering to get a smoother smear effect?
-            // @TODO: *MAYBE* the vertical smear should be more than one row downwards? This might not matter though because it basically works as-is.
-            imgData.processedData[currIndex] = imgData.originalData[prevIndex];
-            imgData.processedData[currIndex + 1] = imgData.originalData[prevIndex + 1];
-            imgData.processedData[currIndex + 2] = imgData.originalData[prevIndex + 2];
-            imgData.processedData[currIndex + 3] = 255; // Alpha
+            for (int vert = 1; vert <= min(y,MAX_VERT); ++vert) {
+                int prevIndex = ((y - vert) * imgData.width + x) * 4;
+                imgData.processedData[currIndex] /= 2;
+                imgData.processedData[currIndex + 1] /= 2;
+                imgData.processedData[currIndex + 2] /= 2;
+
+                imgData.processedData[currIndex] += imgData.processedData[prevIndex] / 2;             // Blue
+                imgData.processedData[currIndex + 1] += imgData.processedData[prevIndex + 1] / 2;     // Green
+                imgData.processedData[currIndex + 2] += imgData.processedData[prevIndex + 2] / 2;     // Red
+                imgData.processedData[currIndex + 3] = 255;                                     // Alpha
+            }
         }
     }
 
@@ -472,25 +492,24 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
     {
         ImageData& img = images[i];
 
-        // Create memory DC for bitmap sections of this image's thumbnails
-        if(img.hdcMem == NULL) img.hdcMem = CreateCompatibleDC(hdc);
-
-        // Create bitmap sections for original and processed image data
+        // Create memory DC and bitmap sections for original and processed image data
+        if(img.hdcMemOriginal == NULL) img.hdcMemOriginal = CreateCompatibleDC(hdc);
         if(img.hOriginalBitmap == NULL)
-            img.hOriginalBitmap = BitsToThumbnailBitmap(img.hdcMem, img.width, img.height, img.originalData);
+            img.hOriginalBitmap = BitsToThumbnailBitmap(img.hdcMemOriginal, img.width, img.height, img.originalData);
 
+        if(img.hdcMemProcessed == NULL) img.hdcMemProcessed = CreateCompatibleDC(hdc);
         if(img.hProcessedBitmap == NULL)
-            img.hProcessedBitmap = BitsToThumbnailBitmap(img.hdcMem, img.width, img.height, img.processedData);
+            img.hProcessedBitmap = BitsToThumbnailBitmap(img.hdcMemProcessed, img.width, img.height, img.processedData);
 
         //===================================================================//
         // Render original thumbnail
         StretchBlt(
-            win->hdcBackbuffer,          // hdcDest
+            win->hdcBackbuffer,     // hdcDest
             xPos,                   // xDest
             yPos,                   // yDest
             thumbnailSize,          // wDest
             thumbnailSize,          // hDest
-            img.hdcMem,                 // hdcSrc
+            img.hdcMemOriginal,     // hdcSrc
             0,                      // xSrc
             0,                      // ySrc
             THUMBNAIL_BASE_SIZE,    // wSrc
@@ -536,7 +555,7 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
             yPos,                   // yDest
             thumbnailSize,          // wDest
             thumbnailSize,          // hDest
-            img.hdcMem,             // hdcSrc
+            img.hdcMemProcessed,    // hdcSrc
             0,                      // xSrc
             0,                      // ySrc
             THUMBNAIL_BASE_SIZE,    // wSrc
