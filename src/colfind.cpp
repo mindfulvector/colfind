@@ -7,6 +7,7 @@
 #include <string>
 #include <fstream>  // For file I/O
 
+#define THUMBNAIL_BASE_SIZE 500
 #define ID_FILE_OPEN 1000
 
 template <typename T>
@@ -24,6 +25,9 @@ struct ImageData {
     std::string filename;
     BYTE* originalData;
     BYTE* processedData;
+    HDC hdcMem;
+    HBITMAP hOriginalBitmap;
+    HBITMAP hProcessedBitmap;
     int width;
     int height;
     std::vector<int> detectedColumns; // Store detected columns here
@@ -76,7 +80,7 @@ void RenderThumbnails(HWND hwnd, HDC hdc);
 
 // Global variables
 std::vector<ImageData> images;
-int thumbnailSize = 500;
+float thumbnailScale = 1.0;
 int thumbnailSpacing = 10;
 
 // Helper function to create a DIB section
@@ -212,12 +216,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             if (delta > 0)
             {
                 // Scrolled up, zoom in
-                thumbnailSize = min(thumbnailSize + 10, 500); // Limit max thumbnail size to 500
+                thumbnailScale = min(thumbnailScale + 0.01f, 100.0f); // Limit max thumbnail size to 500
             }
             else if (delta < 0)
             {
                 // Scrolled down, zoom out
-                thumbnailSize = max(thumbnailSize - 10, 50);  // Limit min thumbnail size to 50
+                thumbnailScale = max(thumbnailScale - 0.01f, 0.5f);  // Limit min thumbnail size to 50
             }
 
             // Invalidate the window to trigger a repaint with the new thumbnail size
@@ -330,6 +334,9 @@ void ProcessImage(const char* filename)
         for (int y = 1; y < imgData.height; ++y) {
             int prevIndex = ((y - 1) * imgData.width + x) * 4;
             int currIndex = (y * imgData.width + x) * 4;
+
+            // @TODO: Combine pixels instead of clobbering to get a smoother smear effect?
+            // @TODO: *MAYBE* the vertical smear should be more than one row downwards? This might not matter though because it basically works as-is.
             imgData.processedData[currIndex] = imgData.originalData[prevIndex];
             imgData.processedData[currIndex + 1] = imgData.originalData[prevIndex + 1];
             imgData.processedData[currIndex + 2] = imgData.originalData[prevIndex + 2];
@@ -364,69 +371,108 @@ void ProcessImage(const char* filename)
     images.push_back(imgData);  // Store image data
 }
 
+HBITMAP BitsToThumbnailBitmap(HDC hdc, int sourceWidth, int sourceHeight, BYTE* bytes)
+{
+        void* pBits;
+        HBITMAP hBitmap = CreateDIBSection(hdc, THUMBNAIL_BASE_SIZE, THUMBNAIL_BASE_SIZE, &pBits);
+        HBITMAP hOldBitmap = (HBITMAP)SelectObject(hdc, hBitmap);
 
+        // Copy image data to bits array, while scaling image data to THUMBNAIL_BASE_SIZE (for
+        // both width and height) from the original file size
+        for (int ty = 0; ty < THUMBNAIL_BASE_SIZE; ++ty) {      // Target y = ty
+            for (int tx = 0; tx < THUMBNAIL_BASE_SIZE; ++tx) {  // Target x = tx
+                // Source sx,sy = target thumbnail position tx,ty; scaled to source size
+                int sx = tx * sourceWidth / THUMBNAIL_BASE_SIZE;
+                int sy = ty * sourceHeight / THUMBNAIL_BASE_SIZE;
+                // Scaled destination index (tx,ty converted to linear index in array)
+                int sIndex = (sy * sourceWidth + sx) * 4;
+                int tIndex = (ty * THUMBNAIL_BASE_SIZE + tx) * 4;
+                ((BYTE*)pBits)[tIndex] = bytes[sIndex];
+                ((BYTE*)pBits)[tIndex + 1] = bytes[sIndex + 1];
+                ((BYTE*)pBits)[tIndex + 2] = bytes[sIndex + 2];
+                ((BYTE*)pBits)[tIndex + 3] = bytes[sIndex + 3];
+            }
+        }
 
+        return hBitmap;
+}
 
 void RenderThumbnails(HWND hwnd, HDC hdc)
 {
     RECT clientRect;
     GetClientRect(hwnd, &clientRect);
 
-    int x = thumbnailSpacing;
-    int y = thumbnailSpacing;
+    SCROLLINFO si;
+    si.cbSize = sizeof(SCROLLINFO);
+    si.fMask = SIF_ALL;
+    GetScrollInfo(hwnd, SB_VERT, &si);
+
+    int xPos = thumbnailSpacing;
+    int yPos = thumbnailSpacing - si.nPos;
+    int thumbnailSize = THUMBNAIL_BASE_SIZE * thumbnailScale;
 
     for (size_t i = 0; i < images.size(); ++i)
     {
-        const ImageData& img = images[i];
+        ImageData& img = images[i];
+
+        // Create a bitmap in memory which we will use to render the image data
+        if(img.hOriginalBitmap == NULL) {
+            img.hdcMem = CreateCompatibleDC(hdc);
+            img.hOriginalBitmap = BitsToThumbnailBitmap(img.hdcMem, img.width, img.height, img.originalData);
+        }
 
         // Render original thumbnail
-        HDC hdcMem = CreateCompatibleDC(hdc);
-        void* pBits;
-        HBITMAP hBitmap = CreateDIBSection(hdc, thumbnailSize, thumbnailSize, &pBits);
-        HBITMAP hOldBitmap = (HBITMAP)SelectObject(hdcMem, hBitmap);
+        StretchBlt(
+            hdc,                    // hdcDest
+            xPos,                   // xDest
+            yPos,                   // yDest
+            thumbnailSize,          // wDest
+            thumbnailSize,          // hDest
+            img.hdcMem,                 // hdcSrc
+            0,                      // xSrc
+            0,                      // ySrc
+            THUMBNAIL_BASE_SIZE,    // wSrc
+            THUMBNAIL_BASE_SIZE,    // hSrc
+            SRCCOPY
+        );
 
-        // Scale and copy image data
-        for (int ty = 0; ty < thumbnailSize; ++ty) {
-            for (int tx = 0; tx < thumbnailSize; ++tx) {
-                int sx = tx * img.width / thumbnailSize;
-                int sy = ty * img.height / thumbnailSize;
-                int sIndex = (sy * img.width + sx) * 4;
-                int tIndex = (ty * thumbnailSize + tx) * 4;
-                ((BYTE*)pBits)[tIndex] = img.originalData[sIndex];
-                ((BYTE*)pBits)[tIndex + 1] = img.originalData[sIndex + 1];
-                ((BYTE*)pBits)[tIndex + 2] = img.originalData[sIndex + 2];
-                ((BYTE*)pBits)[tIndex + 3] = img.originalData[sIndex + 3];
-            }
-        }
 
-        BitBlt(hdc, x, y, thumbnailSize, thumbnailSize, hdcMem, 0, 0, SRCCOPY);
-
-        SelectObject(hdcMem, hOldBitmap);
-        DeleteObject(hBitmap);
-
-        // Render processed thumbnail
-        hBitmap = CreateDIBSection(hdc, thumbnailSize, thumbnailSize, &pBits);
-        hOldBitmap = (HBITMAP)SelectObject(hdcMem, hBitmap);
-
-        // Scale and copy processed image data
-        for (int ty = 0; ty < thumbnailSize; ++ty) {
-            for (int tx = 0; tx < thumbnailSize; ++tx) {
-                int sx = tx * img.width / thumbnailSize;
-                int sy = ty * img.height / thumbnailSize;
-                int sIndex = (sy * img.width + sx) * 4;
-                int tIndex = (ty * thumbnailSize + tx) * 4;
-                ((BYTE*)pBits)[tIndex] = img.processedData[sIndex];
-                ((BYTE*)pBits)[tIndex + 1] = img.processedData[sIndex + 1];
-                ((BYTE*)pBits)[tIndex + 2] = img.processedData[sIndex + 2];
-                ((BYTE*)pBits)[tIndex + 3] = img.processedData[sIndex + 3];
-            }
-        }
-
-        BitBlt(hdc, x + thumbnailSize + thumbnailSpacing, y, thumbnailSize, thumbnailSize, hdcMem, 0, 0, SRCCOPY);
-
-        // Draw detected columns as thin vertical lines over the processed thumbnail
+        /*BitBlt(
+            hdc,                    // hdcDest
+            xPos,                   // xDest
+            yPos,                   // yDest
+            thumbnailSize,          // wDest
+            thumbnailSize,          // hDest
+            img.hdcMem,             // hdcSrc
+            0,0, SRCCOPY);
+        */
         HPEN hPen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));  // Red color for edges
         HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
+
+        MoveToEx(hdc, xPos, yPos, NULL); // Starting point
+        LineTo(hdc, xPos + thumbnailSize, yPos + thumbnailSize); // Vertical line
+
+        SelectObject(hdc, hOldPen);
+        DeleteObject(hPen);
+
+/*        SelectObject(img.hdcMem, hOldBitmap);
+        DeleteObject(hBitmap);
+        DeleteDC(hdcMem);
+  */
+        /*
+        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));  // Red color for edges
+        HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
+
+        for (int col = 0; col < img.detectedColumns.size(); ++col) {
+            int tx = img.detectedColumns[col];
+            MoveToEx(hdc, thumbnailSize / 500 * (x + thumbnailSpacing + tx), y, NULL); // Starting point
+            LineTo(hdc, thumbnailSize / 500 * (x + thumbnailSpacing + tx), y + thumbnailSize); // Vertical line
+        }
+        */
+
+        /*
+        hBitmap = CreateDIBSection(hdc, thumbnailSize, thumbnailSize, &pBits);
+        hOldBitmap = (HBITMAP)SelectObject(hdcMem, hBitmap);
 
         for (int tx = 1; tx < thumbnailSize - 1; ++tx) {
             int prevX = (tx - 1) * img.width / thumbnailSize;
@@ -449,12 +495,13 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
                 }
             }
 
-            if (isEdge > 2) {
+            if (isEdge == 1) {
                 // Draw a thin vertical line in bright color (red)
                 MoveToEx(hdc, x + thumbnailSize + thumbnailSpacing + tx, y, NULL); // Starting point
                 LineTo(hdc, x + thumbnailSize + thumbnailSpacing + tx, y + thumbnailSize); // Vertical line
             }
         }
+        *
 
         SelectObject(hdc, hOldPen);
         DeleteObject(hPen);
@@ -462,20 +509,20 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
         SelectObject(hdcMem, hOldBitmap);
         DeleteObject(hBitmap);
         DeleteDC(hdcMem);
+        */
 
-        y += thumbnailSize + thumbnailSpacing;
-        if (y + thumbnailSize > clientRect.bottom) {
-            y = thumbnailSpacing;
-            x += (thumbnailSize + thumbnailSpacing) * 2;
+        xPos += thumbnailSize + thumbnailSpacing;
+        if (xPos + thumbnailSize > clientRect.right) {
+            xPos = thumbnailSpacing;
+            yPos += (thumbnailSize + thumbnailSpacing) * 2;
         }
     }
 
     // Update scrollbar
-    SCROLLINFO si;
     si.cbSize = sizeof(SCROLLINFO);
     si.fMask = SIF_RANGE | SIF_PAGE;
     si.nMin = 0;
-    si.nMax = y;
+    si.nMax = yPos;
     si.nPage = clientRect.bottom;
     SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
 }
