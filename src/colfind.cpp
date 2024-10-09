@@ -56,8 +56,15 @@ struct ImageData {
     int width;
     int height;
     std::vector<int> detectedColumns; // Store detected columns here
+    HWND hwndVertLenEntry;
 
-    ImageData() : originalData(NULL), processedData(NULL), width(0), height(0) {}
+
+    ImageData() :
+        originalData(NULL),
+        processedData(NULL),
+        width(0),
+        height(0),
+        hwndVertLenEntry(NULL) {}
 
     // Destructor to free allocated memory
     ~ImageData() {
@@ -379,7 +386,7 @@ void ProcessImage(const char* filename)
     }
 
     // Step 1: Vertical Smearing (Simple Copying Down the Column)
-    #define MAX_VERT 10
+    #define MAX_VERT 40
     for (int x = 0; x < imgData.width; ++x) {
         for (int y = 1; y < imgData.height; ++y) {
             int currIndex = (y * imgData.width + x) * 4;
@@ -422,7 +429,11 @@ void ProcessImage(const char* filename)
     ReleaseDC(NULL, hdcScreen);
     DeleteObject(hBitmap);
 
-    images.push_back(imgData);  // Store image data
+    // Add parameter adjustment controls
+
+
+    // Store image data via copy constructor
+    images.push_back(imgData);
 }
 
 HBITMAP BitsToThumbnailBitmap(HDC hdc, int sourceWidth, int sourceHeight, BYTE* bytes)
@@ -530,7 +541,7 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
         */
 
         // FPO / debug cross line
-        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));  // Red color for original
+        HPEN hPen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));  // Red for original
         HPEN hOldPen = (HPEN)SelectObject(win->hdcBackbuffer, hPen);
         MoveToEx(win->hdcBackbuffer, xPos, yPos, NULL);
         LineTo(win->hdcBackbuffer, xPos + thumbnailSize, yPos + thumbnailSize);
@@ -565,12 +576,67 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
 
 
         // FPO / debug cross line
-        hPen = CreatePen(PS_SOLID, 1, RGB(0, 255, 0));  // Green color for processed
+        hPen = CreatePen(PS_SOLID, 1, RGB(0, 255, 0));  // Green for processed
         hOldPen = (HPEN)SelectObject(win->hdcBackbuffer, hPen);
         MoveToEx(win->hdcBackbuffer, xPos, yPos, NULL);
         LineTo(win->hdcBackbuffer, xPos + thumbnailSize, yPos + thumbnailSize);
         SelectObject(win->hdcBackbuffer, hOldPen);
         DeleteObject(hPen);
+
+
+        // Draw column frames
+        hPen = CreatePen(PS_SOLID, 1, RGB(0, 0, 255));              // Blue for column
+        HPEN hRedPen = CreatePen(PS_SOLID, 1, RGB(255, 0, 0));      // Red for top-left corner of column
+        HPEN hPurplePen = CreatePen(PS_SOLID, 1, RGB(128, 0, 128));   // Purple for bottom-right of column
+
+        hOldPen = (HPEN)SelectObject(win->hdcBackbuffer, hPen);
+
+        int xOrigin, yOrigin;
+        for(int col = 0; col < img.detectedColumns.size()-1; col += 2) {
+
+            // ========== Draw PURPLE bottom-right corner lines ========== //
+            SelectObject(win->hdcBackbuffer, hPurplePen);
+
+            // Origin for bottom-right corner, from column `col` to column `col+1`
+            xOrigin = xPos + img.detectedColumns[col] * thumbnailScale
+                           + img.detectedColumns[col+1] * thumbnailScale;
+            yOrigin = yPos + thumbnailSize;
+
+            // Bottom line
+            MoveToEx(win->hdcBackbuffer, xOrigin, yOrigin, NULL);
+            LineTo(win->hdcBackbuffer, xOrigin - 10 * thumbnailScale, yOrigin);
+
+            // Right line
+            MoveToEx(win->hdcBackbuffer, xOrigin, yOrigin, NULL);
+            LineTo(win->hdcBackbuffer, xOrigin, yOrigin - 10 * thumbnailScale);
+
+            // Origin for top-left corner -- shared between corner lines and diagonal cross line
+            xOrigin = xPos + img.detectedColumns[col] * thumbnailScale;
+            yOrigin = yPos;
+
+
+            // ========== Draw RED top-left corner lines ========== //
+            SelectObject(win->hdcBackbuffer, hRedPen);
+
+            // Top line
+            MoveToEx(win->hdcBackbuffer,    xOrigin,                        yOrigin, NULL);
+            LineTo(win->hdcBackbuffer,      xOrigin + 10 * thumbnailScale,  yOrigin);
+
+            // Left line
+            MoveToEx(win->hdcBackbuffer,    xOrigin,                        yOrigin, NULL);
+            LineTo(win->hdcBackbuffer,      xOrigin,                        yOrigin + 10 * thumbnailScale);
+
+            // ========== Draw BLUE diagonal line across column ========== //
+            SelectObject(win->hdcBackbuffer, hPen);
+
+            MoveToEx(win->hdcBackbuffer,    xOrigin,                        yOrigin, NULL);
+            LineTo(win->hdcBackbuffer,      xOrigin + img.detectedColumns[col+1]
+                                                    * thumbnailScale,       yOrigin + thumbnailSize);
+        }
+        SelectObject(win->hdcBackbuffer, hOldPen);
+        DeleteObject(hPen);
+
+
 
         // Position next thumbnail
         xPos += thumbnailSize + thumbnailSpacing;
@@ -597,7 +663,7 @@ void RenderThumbnails(HWND hwnd, HDC hdc)
     // Update scrollbar
     si.fMask = SIF_RANGE | SIF_PAGE;
     si.nMin = 0;
-    si.nMax = yPos + thumbnailSize * 1.25;
+    si.nMax = yPos + thumbnailSize * thumbnailScale;
     si.nPage = win->clientRect.bottom;
     SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
 
